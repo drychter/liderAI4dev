@@ -23,10 +23,27 @@ class EstimationRequest(BaseModel):
 
 
 class EstimationResponse(BaseModel):
-    estimation: str 
-    model: str 
+    estimation: str
+    model: str
     provider: str
+    input_tokens: int
+    output_tokens: int
     total_tokens: int
+
+
+class ContextExample(BaseModel):
+    meeting_summary: str
+    estimation: str
+
+
+class ContextResponse(BaseModel):
+    """The static context (CAG) that is injected into every estimation call."""
+
+    system_prompt: str
+    provider: str
+    model: str
+    examples: list[ContextExample]
+
 
 class ApiResponse(BaseModel):
     message: str
