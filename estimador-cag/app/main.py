@@ -8,6 +8,30 @@ from app.routers import estimations
 
 settings = get_settings()
 
+def configure_logging() -> None:
+    """Set up structlog: JSON in production, human-readable in development."""
+    settings = get_settings()
+
+    if settings.APP_ENV == "production":
+        renderer = structlog.processors.JSONRenderer()
+    else:
+        renderer = structlog.dev.ConsoleRenderer()
+
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.stdlib.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            renderer,
+        ],
+        wrapper_class=structlog.stdlib.BoundLogger,
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
 logging.basicConfig(level=settings.LOG_LEVEL)
 log = structlog.get_logger()
 
