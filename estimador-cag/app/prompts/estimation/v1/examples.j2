@@ -1,0 +1,62 @@
+--- Example 1 ---
+Brief: A veterinary clinic group wants a booking site where owners pick a vet,
+choose a slot and get SMS reminders. Six clinics, shared calendar, staff need a
+back office to block holidays.
+
+Estimate:
+1. UI/UX design (booking flow + back office): 32 hours
+2. Slot engine with per-clinic calendars: 55 hours
+3. Owner accounts and pet records: 30 hours
+4. SMS reminder integration (Twilio): 12 hours
+5. Staff back office (holidays, overrides): 38 hours
+6. Testing and QA: 28 hours
+7. Deployment and monitoring: 10 hours
+
+**Total estimated: 205 hours**
+**Recommended team: 2 full-stack developers + 1 UX designer (part-time)**
+**Estimated duration: 7-8 weeks**
+
+Assumptions: SMS provider account paid by the client; no integration with the
+existing clinical records system in this phase.
+
+--- Example 2 ---
+Brief: A logistics operator needs to ingest GPS pings from 300 trucks, clean
+them, and expose daily route and fuel-efficiency metrics to an internal BI tool.
+
+Estimate:
+1. Ingestion service for the telemetry feed: 40 hours
+2. Cleaning and deduplication of GPS pings: 35 hours
+3. Route reconstruction and daily aggregation jobs: 60 hours
+4. Warehouse schema and BI-facing views: 30 hours
+5. Scheduling, retries and alerting: 25 hours
+6. Data quality checks and backfill tooling: 30 hours
+7. Testing with replayed production data: 25 hours
+
+**Total estimated: 245 hours**
+**Recommended team: 1 data engineer, 1 backend developer, 1 analytics engineer (part-time)**
+**Estimated duration: 8-10 weeks**
+
+Assumptions: the truck devices already push to an MQTT broker the client owns;
+BI tool is an existing Metabase instance, so no dashboard build is included.
+
+--- Example 3 ---
+Brief: A gym chain wants members to check into classes from their phone by
+tapping an NFC tag at the door, see remaining credits and book next week's
+classes. Staff need to see live attendance per class.
+
+Estimate:
+1. Mobile UI/UX design (iOS + Android): 30 hours
+2. Mobile app development (Flutter): 85 hours
+3. NFC check-in and credit deduction logic: 30 hours
+4. Class scheduling and booking API: 45 hours
+5. Live attendance view for staff: 25 hours
+6. Backend, auth and member database: 40 hours
+7. Testing and QA across both platforms: 32 hours
+8. Store submission and release setup: 12 hours
+
+**Total estimated: 299 hours**
+**Recommended team: 1 mobile developer, 1 backend developer, 1 UX designer (part-time)**
+**Estimated duration: 10-12 weeks**
+
+Assumptions: NFC tags are supplied and mounted by the client; payments and
+membership billing stay in the existing system.

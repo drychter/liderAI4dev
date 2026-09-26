@@ -1,0 +1,17 @@
+Here is the brief for the project to estimate.
+
+Project type: {{ project_type }}
+{% if project_type == "mobile_app" %}
+Weigh iOS/Android parity, device QA and store submission in your numbers.
+{% elif project_type == "web_saas" %}
+Weigh multi-tenancy, authentication, billing and scalability in your numbers.
+{% elif project_type == "internal_tool" %}
+Small known user base and no public storefront: favour delivery speed over polish.
+{% elif project_type == "data_pipeline" %}
+Weigh ingestion, transformation, scheduling, data quality and monitoring in your numbers.
+{% endif %}
+
+Description:
+{{ description }}
+
+Produce the estimate now, following the format and level of detail you were given.

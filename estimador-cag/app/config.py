@@ -1,50 +1,27 @@
+from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import BaseModel
-from functools import lru_cache
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    OPEN_API_KEY: str | None = None
-    ANTHROPIC_API_KEY: str
-    LLM_PROVIDER: str
-    LLM_MODEL: str
-    APP_ENV: str
-    LOG_LEVEL: str
+    # Proveedor primario. Anthropic por defecto.
+    LLM_PROVIDER: str = "anthropic"
+    LLM_MODEL: str = "claude-haiku-4-5-20251001"
+
+    # Proveedor de respaldo: se usa solo si el primario falla. Déjalo vacío para
+    # desactivar el fallback.
+    LLM_FALLBACK_PROVIDER: str | None = "openai"
+    LLM_FALLBACK_MODEL: str | None = "gpt-4o-mini"
+
+    ANTHROPIC_API_KEY: str | None = None
+    OPENAI_API_KEY: str | None = None
+
+    APP_ENV: str = "development"
+    LOG_LEVEL: str = "INFO"
+
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
-
-class EstimationRequest(BaseModel):
-    transcription: str 
-
-
-class EstimationResponse(BaseModel):
-    estimation: str
-    model: str
-    provider: str
-    input_tokens: int
-    output_tokens: int
-    total_tokens: int
-
-
-class ContextExample(BaseModel):
-    meeting_summary: str
-    estimation: str
-
-
-class ContextResponse(BaseModel):
-    """The static context (CAG) that is injected into every estimation call."""
-
-    system_prompt: str
-    provider: str
-    model: str
-    examples: list[ContextExample]
-
-
-class ApiResponse(BaseModel):
-    message: str
-    status_code: int    
