@@ -1,79 +1,90 @@
-import json
 import os
-import textwrap
 import time
-from collections.abc import Iterator
 
 import requests
 import streamlit as st
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
-ESTIMATE_STREAM_URL = f"{API_BASE_URL}/api/v1/estimate/stream"
+ESTIMATE_URL = f"{API_BASE_URL}/api/v1/estimate"
 CONTEXT_URL = f"{API_BASE_URL}/api/v1/context"
 TIMEOUT_SECONDS = 120
 
+# Los valores son los de los enums del servicio (app/schemas.py); las claves, la
+# etiqueta que ve el usuario. El formulario solo envía valores válidos del contrato.
+PROJECT_TYPES = {
+    "App móvil": "mobile_app",
+    "SaaS web": "web_saas",
+    "Herramienta interna": "internal_tool",
+    "Pipeline de datos": "data_pipeline",
+}
 
-def stream_estimation(transcription: str, meta: dict) -> Iterator[str]:
-    """Yield the estimation chunk by chunk and store the final metadata in `meta`."""
-    with requests.post(
-        ESTIMATE_STREAM_URL,
-        json={"transcription": transcription},
-        stream=True,
-        timeout=TIMEOUT_SECONDS,
-    ) as response:
-        response.raise_for_status()
+DETAIL_LEVELS = {
+    "Resumen": "summary",
+    "Medio": "medium",
+    "Detallado": "detailed",
+}
 
-        for line in response.iter_lines(decode_unicode=True):
-            if not line:
-                continue
+OUTPUT_FORMATS = {
+    "Tabla por fases": "phases_table",
+    "Lista de partidas": "line_items",
+    "Narrativo": "narrative",
+}
 
-            event = json.loads(line)
-            if event["type"] == "delta":
-                yield event["text"]
-            elif event["type"] == "done":
-                meta.update(event)
-            elif event["type"] == "error":
-                raise RuntimeError(event["detail"])
+DESCRIPTION_MIN_CHARS = 20
+DESCRIPTION_MAX_CHARS = 2000
+
+
+def request_estimation(payload: dict) -> dict:
+    """POST /estimate con un EstimationRequest y devolver el EstimationResponse."""
+    response = requests.post(ESTIMATE_URL, json=payload, timeout=TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.json()
 
 
 @st.cache_data(show_spinner=False)
 def fetch_context() -> dict:
-    """Fetch the static context (system prompt + CAG examples) from the API."""
+    """Fetch the rendered system prompt and its version from the API."""
     response = requests.get(CONTEXT_URL, timeout=10)
     response.raise_for_status()
     return response.json()
 
 
-def format_meta(meta: dict) -> str:
-    return f"{meta['provider']} · {meta['model']} · {meta['total_tokens']} tokens"
+def describe_http_error(exc: requests.HTTPError) -> str:
+    """Convertir un error HTTP (incluido el 422 de Pydantic) en una línea legible."""
+    try:
+        detail = exc.response.json()["detail"]
+    except (ValueError, KeyError):
+        return f"❌ Error {exc.response.status_code}: {exc.response.text}"
+
+    if isinstance(detail, list):
+        # 422: FastAPI devuelve una lista de errores de validación de Pydantic.
+        detail = "; ".join(
+            f"{'.'.join(str(part) for part in error['loc'][1:])}: {error['msg']}"
+            for error in detail
+        )
+
+    return f"❌ Error {exc.response.status_code}: {detail}"
 
 
-def render_metrics(metrics: dict | None) -> None:
-    """Draw the metrics of the last call inside the sidebar."""
-    if not metrics:
+def render_last_call(info: dict | None) -> None:
+    """Dibujar los datos de la última llamada en el panel lateral."""
+    if not info:
         st.caption("Todavía no hay llamadas en esta sesión.")
         return
 
-    st.caption("Modelo utilizado")
-    st.code(metrics["model"], language=None)
-
-    left, right = st.columns(2)
-    left.metric("Tokens entrada", f"{metrics['input_tokens']:,}")
-    right.metric("Tokens salida", f"{metrics['output_tokens']:,}")
-
-    left, right = st.columns(2)
-    left.metric("Tokens totales", f"{metrics['total_tokens']:,}")
-    right.metric("Tiempo respuesta", f"{metrics['elapsed_seconds']:.1f} s")
+    st.caption("Versión de prompt")
+    st.code(info["prompt_version"], language=None)
+    st.metric("Tiempo respuesta", f"{info['elapsed_seconds']:.1f} s")
 
 
 st.set_page_config(page_title="Estimador CAG", page_icon="📊", layout="wide")
 st.title("📊 Estimador CAG")
-st.caption(f"API: {ESTIMATE_STREAM_URL}")
+st.caption(f"API: {ESTIMATE_URL}")
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "last_metrics" not in st.session_state:
-    st.session_state.last_metrics = None
+if "estimation" not in st.session_state:
+    st.session_state.estimation = None
+if "last_call" not in st.session_state:
+    st.session_state.last_call = None
 
 # --- Panel lateral: qué información está usando el modelo -------------------
 with st.sidebar:
@@ -87,84 +98,77 @@ with st.sidebar:
 
     if context:
         st.subheader("System prompt")
+        st.caption(
+            "Plantilla Jinja2 renderizada, con los ejemplos few-shot (CAG) incluidos. "
+            "Se muestra para una configuración de referencia: los bloques que dependen "
+            "de nivel de detalle y formato cambian según lo que elijas abajo."
+        )
         st.text_area(
             "System prompt activo",
             value=context["system_prompt"],
-            height=180,
+            height=320,
             disabled=True,  # solo lectura
             label_visibility="collapsed",
         )
-
-        st.subheader(f"Contexto estático ({len(context['examples'])} ejemplos)")
-        st.caption(
-            "Estimaciones de ejemplo inyectadas en cada llamada como pares "
-            "usuario/asistente (CAG)."
-        )
-        for index, example in enumerate(context["examples"], start=1):
-            with st.expander(f"Ejemplo {index}"):
-                st.markdown("**Resumen de reunión**")
-                st.markdown(example["meeting_summary"])
-                st.markdown("**Estimación**")
-                st.markdown(textwrap.dedent(example["estimation"]).strip())
+        st.caption(f"Versión de prompt: `{context['prompt_version']}`")
 
     st.divider()
     st.subheader("📈 Última llamada")
-    # Placeholder para poder refrescar las métricas tras el streaming
-    metrics_slot = st.empty()
-    with metrics_slot.container():
-        render_metrics(st.session_state.last_metrics)
+    render_last_call(st.session_state.last_call)
 
-# 1. Se dibuja el historial existente
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-        if meta := message.get("meta"):
-            st.caption(meta)
+# --- Formulario: construye el EstimationRequest -----------------------------
+with st.form("estimation_form"):
+    description = st.text_area(
+        "Descripción del proyecto",
+        height=220,
+        max_chars=DESCRIPTION_MAX_CHARS,
+        placeholder="Describe el proyecto o pega aquí el resumen de la reunión...",
+        help=f"Entre {DESCRIPTION_MIN_CHARS} y {DESCRIPTION_MAX_CHARS} caracteres.",
+    )
 
-# 2. Captura un nuevo mensaje del usuario
-if prompt := st.chat_input("Pega aquí la transcripción de la reunión..."):
-    # Muestra el mensaje en pantalla
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    left, middle, right = st.columns(3)
+    project_type_label = left.selectbox("Tipo de proyecto", PROJECT_TYPES)
+    detail_level_label = middle.selectbox("Nivel de detalle", DETAIL_LEVELS, index=1)
+    output_format_label = right.selectbox("Formato de salida", OUTPUT_FORMATS)
 
-    # Lo guarda en el historial
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    submitted = st.form_submit_button("Generar estimación", type="primary")
 
-    # 3. Llama al router y va escribiendo la estimación token a token
-    with st.chat_message("assistant"):
-        meta: dict = {}
+if submitted:
+    description = description.strip()
+
+    if len(description) < DESCRIPTION_MIN_CHARS:
+        st.error(
+            f"La descripción necesita al menos {DESCRIPTION_MIN_CHARS} caracteres "
+            f"(tiene {len(description)})."
+        )
+    else:
+        payload = {
+            "description": description,
+            "project_type": PROJECT_TYPES[project_type_label],
+            "detail_level": DETAIL_LEVELS[detail_level_label],
+            "output_format": OUTPUT_FORMATS[output_format_label],
+        }
+
         started_at = time.perf_counter()
         try:
-            estimation = st.write_stream(stream_estimation(prompt, meta))
+            with st.spinner("Generando estimación..."):
+                result = request_estimation(payload)
         except requests.HTTPError as exc:
-            detail = exc.response.json().get("detail", exc.response.text)
-            error = f"❌ Error {exc.response.status_code}: {detail}"
-            st.error(error)
-            st.session_state.messages.append({"role": "assistant", "content": error})
+            st.session_state.estimation = None
+            st.error(describe_http_error(exc))
         except requests.RequestException as exc:
-            error = f"❌ No se pudo conectar con la API ({ESTIMATE_STREAM_URL}): {exc}"
-            st.error(error)
-            st.session_state.messages.append({"role": "assistant", "content": error})
-        except RuntimeError as exc:
-            error = f"❌ El modelo falló durante la generación: {exc}"
-            st.error(error)
-            st.session_state.messages.append({"role": "assistant", "content": error})
+            st.session_state.estimation = None
+            st.error(f"❌ No se pudo conectar con la API ({ESTIMATE_URL}): {exc}")
         else:
-            caption = format_meta(meta) if meta else None
-            if caption:
-                st.caption(caption)
-            st.session_state.messages.append(
-                {"role": "assistant", "content": estimation, "meta": caption}
-            )
+            st.session_state.estimation = result
+            st.session_state.last_call = {
+                "prompt_version": result["prompt_version"],
+                "elapsed_seconds": time.perf_counter() - started_at,
+            }
+            # El panel lateral ya se dibujó, así que se repinta con los datos nuevos.
+            st.rerun()
 
-            if meta:
-                st.session_state.last_metrics = {
-                    "model": meta["model"],
-                    "input_tokens": meta["input_tokens"],
-                    "output_tokens": meta["output_tokens"],
-                    "total_tokens": meta["total_tokens"],
-                    "elapsed_seconds": time.perf_counter() - started_at,
-                }
-                # Repinta el panel lateral, que ya se había dibujado antes
-                with metrics_slot.container():
-                    render_metrics(st.session_state.last_metrics)
+if st.session_state.estimation:
+    st.divider()
+    st.markdown(st.session_state.estimation["text"])
+    st.caption(f"prompt_version: {st.session_state.estimation['prompt_version']}")

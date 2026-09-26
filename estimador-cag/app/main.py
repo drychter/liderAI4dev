@@ -3,8 +3,9 @@ import logging
 import structlog
 from fastapi import FastAPI
 
-from app.config import ApiResponse, get_settings
+from app.config import get_settings
 from app.routers import estimations
+from app.schemas import ApiResponse
 
 settings = get_settings()
 

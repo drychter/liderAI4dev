@@ -1,0 +1,31 @@
+- generic [ref=e3]:
+  - banner [ref=e6]:
+    - generic [ref=e9]:
+      - generic [ref=e51]:
+        - img "Running..." [ref=e52]
+        - button "Stop" [ref=e57] [cursor=pointer]
+      - button "Deploy" [ref=e11] [cursor=pointer]
+      - button "Main menu" [ref=e15] [cursor=pointer]
+  - generic [ref=e19]:
+    - generic [ref=e21]:
+      - heading "📊 Estimador CAG" [level=1] [ref=e26]:
+        - text: 📊 Estimador CAG
+        - generic [ref=e27]:
+          - link "Link to heading":
+            - /url: "#estimador-cag"
+      - paragraph [ref=e32]:
+        - text: "API:"
+        - link "http://localhost:8000/api/v1/estimate" [ref=e33] [cursor=pointer]:
+          - /url: http://localhost:8000/api/v1/estimate
+      - generic [ref=e59]:
+        - generic [ref=e60]: face
+        - generic "Chat message from user" [ref=e63]:
+          - paragraph [ref=e69]: El cliente necesita un portal web para reservar salas de reuniones, con login corporativo y notificaciones por email.
+      - generic [ref=e71]:
+        - generic [ref=e72]: smart_toy
+        - generic "Chat message from assistant" [ref=e75]:
+          - status [ref=e83]:
+            - paragraph [ref=e85]: Generando estimación...
+    - generic [ref=e42]:
+      - textbox "Pega aquí la transcripción de la reunión..." [active] [ref=e44]
+      - button "Send message" [disabled] [ref=e87]
